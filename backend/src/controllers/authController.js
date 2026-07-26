@@ -116,7 +116,7 @@ export const signOut = async (req, res) => {
 export const refreshToken = async (req,res) => {
     try {
         // get refresh token from cookie
-        const token = req.cookie?.refreshToken;
+        const token = req.cookies?.refreshToken;
         if (!token){
             return res.status(401).json({ message: 'Token not found' });
         }
@@ -124,12 +124,12 @@ export const refreshToken = async (req,res) => {
         // compare with refresh token in db
         const session = await Session.findOne({ refreshToken: token });
         if (!session){
-            return res.status(403).json({ message: 'Invalid token' })
+            return res.status(403).json({ message: 'Invalid refresh token' })
         }
 
         // check the expire date
         if (session.expiresAt < new Date()){
-            return res.status(403).json({ message: 'Invalid token' })
+            return res.status(403).json({ message: 'Invalid refresh token' })
         }
 
         // create a new access token
@@ -138,7 +138,9 @@ export const refreshToken = async (req,res) => {
             process.env.ACCESS_TOKEN_SECRET,
             {expiresIn: ACCESS_TOKEN_TTL}
         );
+
         // return
+        return res.status(200).json({ accessToken })
     } catch (error) {
         console.error('Error when calling refreshToken', error);
         return res.status(500).json({ message: 'Internal server error'});
