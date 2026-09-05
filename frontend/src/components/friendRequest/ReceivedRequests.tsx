@@ -1,0 +1,67 @@
+import { useFriendStore } from "@/stores/useFriendStore";
+import FriendRequestItem from "./FriendRequestItem";
+import { Button } from "../ui/button";
+import { toast } from "sonner";
+
+
+const ReceivedRequests = () => {
+    const {receivedList, acceptRequest, declineRequest, loading} = useFriendStore();
+
+    if(!receivedList || receivedList.length === 0) {
+        return (<p className="text-sm text-muted-foreground">
+            You haven't received any friend request.
+        </p>)
+    }
+
+    const handleAccept = async (requestId: string) => {
+        try {
+            await acceptRequest(requestId);
+            toast.success("Accept friend request")
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+    const handleDecline = async (requestId: string) => {
+        try {
+            await declineRequest(requestId);
+            toast.info("Decline friend request")
+        } catch (error) {
+            console.error(error);
+        }
+    };
+
+
+    return (
+        <div className="space-y-3 mt-4">
+            { receivedList.map((req) => (
+                <FriendRequestItem
+                key={req._id}
+                requestInfo={req}
+                actions={
+                    <div className="flex gap-2">
+                        <Button
+                        size="sm"
+                        variant="primary"
+                        onClick={() => handleAccept(req._id)}
+                        disabled={loading}>
+                            Accept
+                        </Button>
+
+                        <Button
+                        size="sm"
+                        variant="destructiveOutline"
+                        onClick={() => handleDecline(req._id)}
+                        disabled={loading}>
+                            Decline
+                        </Button>
+                    </div>
+                }
+                type="received"/>
+            ))}
+
+        </div>
+    )
+};
+
+export default ReceivedRequests;
