@@ -11,7 +11,7 @@ import { useNavigate } from "react-router";
 
 const signInSchema = z.object({
   username: z.string().min(3, 'Required at least 3 characters for username'),
-  password: z.string().min(6, 'Required at least 6 characters for password')
+  password: z.string().min(1, 'Required at least 6 characters for password')
 });
 
 type SignInFormValues = z.infer<typeof signInSchema>;
@@ -59,7 +59,7 @@ export function SigninForm({className, ...props}: React.ComponentProps<"div">) {
                   {...register("username")}
                 />
                 {errors.username && (
-                  <p className="text-destructive text-sm">
+                  <p className="error-message">
                     {errors.username.message}
                   </p>
                 )}
@@ -75,7 +75,7 @@ export function SigninForm({className, ...props}: React.ComponentProps<"div">) {
                   {...register("password")}
                 />
                 {errors.password && (
-                  <p className="text-destructive text-sm">
+                  <p className="error-message">
                     {errors.password.message}
                   </p>
                 )}

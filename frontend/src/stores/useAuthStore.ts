@@ -2,18 +2,28 @@ import { create } from 'zustand';
 import { toast } from 'sonner';
 import { authService } from '@/services/authService';
 import type { AuthState } from '@/types/store';
+import { persist } from 'zustand/middleware';
+import { useChatStore } from './useChatStore';
 
-export const useAuthStore = create<AuthState>((set, get) => ({
+export const useAuthStore = create<AuthState>()(
+    persist((set, get) => ({
     accessToken: null,
     user: null,
     loading: false,
 
     clearState: () => {
         set({accessToken: null, user: null, loading: false,});
+        useChatStore.getState().reset();
+        localStorage.clear();
+        sessionStorage.clear();
     },
 
     setAccessToken: (accessToken) => {
         set({accessToken});
+    },
+
+    setUser: (user) => {
+        set({user});
     },
 
     signUp: async (username, password, email, firstName, lastName) => {
@@ -31,10 +41,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     signIn: async (username, password) => {
         try {
+            get().clearState();
             set({ loading: true });
+
             const { accessToken } = await authService.signIn(username, password);
             get().setAccessToken(accessToken);
+
             await get().fetchMe();
+            await useChatStore.getState().fetchConversation();
             toast.success('Sign in successfully! Welcome back to Moji 🎉');
         } catch (error) {
             console.error(error);
@@ -71,21 +85,28 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
     refresh: async () => {
         try {
-            set({loading: true});
-            
-            const {user, fetchMe, setAccessToken} = get();
-            const {accessToken} = await authService.refresh();
+            set({ loading: true });
+
+            const { user, fetchMe, setAccessToken } = get();
+            const accessToken = await authService.refresh();
 
             setAccessToken(accessToken);
 
-            if (!user){
-                await fetchMe;
+            if (!user) {
+                await fetchMe();
             }
         } catch (error) {
             console.error(error);
+            toast.error("Your session has expired. Please log in.");
             get().clearState();
-        } finally{
-            set({loading: false});
+        } finally {
+            set({ loading: false });
         }
     }
-}));
+    
+}), {
+        name:"auth-Storage",
+        partialize: (state) => ({user: state.user})
+    }
+    )
+);
