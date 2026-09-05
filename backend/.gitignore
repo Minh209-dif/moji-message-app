@@ -1,0 +1,19 @@
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs and local runtime files
+logs/
+*.log
+*.local
+
+# Generated output
+coverage/
+dist/
+build/
+tmp/
+temp/
