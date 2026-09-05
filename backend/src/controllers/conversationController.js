@@ -1,7 +1,8 @@
 import Conversation from "../models/Conversation.js";
 import Message from "../models/Message.js";
+import { io } from "../socket/index.js";
 
-export const createConversation = async(req , res) => {
+export const createConversation = async(req, res) => {
     try {
         const {type, name, memberIds} = req.body;
         const userId = req.user._id;
@@ -61,16 +62,33 @@ export const createConversation = async(req , res) => {
             {path: "participants.userId", select: "displayName avatarUrl"},
             {path: "seenBy", select: "displayName avatarUrl"},
             {path: "lastMessage.senderId", select: "displayName avatarUrl"}
-        ]);
+        ]); 
 
-        return res.status(201).json({conversation});
+        const participants = (conversation.participants || []).map((p) => ({
+            _id: p.userId?._id,
+            displayName: p.userId?.displayName,
+            avatarUrl: p.userId?.avatarUrl ?? null,
+            joinedAt: p.joinedAt
+        }));
+
+        const formatted = {...conversation.toObject(), participants};
+
+
+        // Emit socket to group members when create a group conversation
+        if(type === 'group') {
+            memberIds.forEach((userId) => {
+                io.to(userId).emit("new-group", formatted);
+            });
+        }
+
+        return res.status(201).json({conversation: formatted});
     } catch (error) {
         console.error("Error creating a conversation", error);
         return res.status(500).json({message: "Internal server error"});
     }
 }
 
-export const getConversation = async(req , res) => {
+export const getConversation = async(req, res) => {
     try {
         const userId = req.user._id;
 
@@ -110,7 +128,7 @@ export const getConversation = async(req , res) => {
     }
 }
 
-export const getMessage = async(req , res) => {
+export const getMessage = async(req, res) => {
     try {
         const { conversationId } = req.params;
         const { limit = 50, cursor } = req.query;
@@ -138,5 +156,68 @@ export const getMessage = async(req , res) => {
     } catch (error) {
         console.error("Error getting messages", error);
         return res.status(500).json({message: "Internal server error"});
+    }
+};
+
+
+export const getUserConversationsForSocketIO = async (userId) => {
+    try {
+        const conversations =  await Conversation.find(
+            {"participants.userId": userId},
+            {_id: 1}
+        );
+
+        return conversations.map((c) => c._id.toString());
+    } catch (error) {
+        console.error("Error fetching conversations: ", error);
+    }
+};
+
+export const markAsSeen = async (req, res) => {
+    try {
+        const {conversationId} = req.params;
+        const userId = req.user._id.toString();
+
+        const conversation = await Conversation.findById(conversationId).lean();
+
+        if (!conversation) {
+            return res.status(404).json({message: "Conversation does not exist"});
+        }
+        
+        const last = conversation.lastMessage;
+        if(!last){
+            return res.status(200).json({message: "Does not have message to mark as seen"});
+        }
+
+        if(last.senderId.toString() === userId){
+            return res.status(200).json({message: "Sender does not need to be marked as seen"});
+        }
+
+        const updated = await Conversation.findByIdAndUpdate(conversationId, {
+            $addToSet: {seenBy: userId},
+            $set: { [`unreadCounts.${userId}`]: 0}
+        },{
+            new: true
+        });
+
+        io.to(conversationId).emit("read-message",{
+            conversation: updated,
+            lastMessage: {
+                _id: updated?.lastMessage._id,
+                content: updated?.lastMessage.content,
+                createdAt: updated?.lastMessage.createdAt,
+                sender: {
+                    _id: updated?.lastMessage.senderId,
+                }
+            }
+        });
+
+        return res.status(200).json({
+            message: "Marked as seen",
+            seenBy: updated?.seenBy || [],
+            myUnreadCount: updated?.unreadCounts[userId] || 0,
+        });
+    } catch (error) {
+        console.error("Error marking as seen", error);
     }
 }
